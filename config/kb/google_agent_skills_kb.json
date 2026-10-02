@@ -1,0 +1,250 @@
+[
+  {
+    "id": "gas-001",
+    "kb": "google_agent_skills",
+    "skill": "gmail",
+    "title": "Gmail Agent Skill — read, draft, and send",
+    "category": "google_agent_skill",
+    "tags": ["gmail", "email", "workspace", "oauth", "inbox"],
+    "source": "google/skills — Gmail skill reference",
+    "content": "The Gmail skill lets an agent read, triage, draft, and send mail on behalf of a consenting user. It is OAuth 2.0 user-consent based (not a service-wide API key): the agent presents a Google-hosted consent screen listing the exact scopes requested, and the token it receives is scoped and user-specific. Enterprises typically require the app to pass Google Workspace domain-wide delegation review before the consent screen can be shown to end users org-wide.",
+    "oauth_scopes": [
+      {"scope": "https://www.googleapis.com/auth/gmail.readonly", "purpose": "Read message metadata and body for triage or summarisation use cases"},
+      {"scope": "https://www.googleapis.com/auth/gmail.compose", "purpose": "Create draft messages for human review before sending"},
+      {"scope": "https://www.googleapis.com/auth/gmail.send", "purpose": "Send a message the agent drafted or the user approved"},
+      {"scope": "https://www.googleapis.com/auth/gmail.modify", "purpose": "Apply labels or archive messages — broader than send-only, request only if label/archive actions are in scope"}
+    ],
+    "integration_steps": [
+      "Register an OAuth 2.0 client in Google Cloud Console scoped to the target Workspace domain",
+      "Request only the Gmail scopes the use case needs — gmail.readonly for triage, gmail.compose for draft-only flows; never request gmail.modify unless label/archive actions are explicitly in scope",
+      "Submit the app for Google Workspace domain-wide delegation review before any enterprise-wide rollout",
+      "Declare the exact granted scope set in the agent's Agent Skill manifest and confirm it matches what the consent screen actually presented"
+    ],
+    "testing_notes": [
+      "Confirm the consent screen lists only the scopes declared in the manifest — no undeclared scope creep",
+      "Verify a revoked-consent call fails closed (401/403), never silently degraded to a cached response"
+    ],
+    "related_skills": [
+      {"skill": "drive", "relation": "Gmail attachments frequently reference Drive files — a Drive read scope is commonly requested alongside Gmail scopes"},
+      {"skill": "calendar", "relation": "Meeting-invite emails often trigger a Calendar skill event-create action downstream"}
+    ]
+  },
+  {
+    "id": "gas-002",
+    "kb": "google_agent_skills",
+    "skill": "drive",
+    "title": "Drive Agent Skill — file discovery and content access",
+    "category": "google_agent_skill",
+    "tags": ["drive", "files", "storage", "workspace", "oauth"],
+    "source": "google/skills — Drive skill reference",
+    "content": "The Drive skill lets an agent search, read, and optionally create or update files a user owns or has been shared. Google publishes narrow, purpose-scoped alternatives to the historic full-drive scope: drive.file (access limited to files the app itself created or the user explicitly opened with the app) is strongly preferred over the broad drive scope, which grants access to the user's entire Drive and triggers additional Google security review.",
+    "oauth_scopes": [
+      {"scope": "https://www.googleapis.com/auth/drive.metadata.readonly", "purpose": "List file names, owners, and modified time without reading file content"},
+      {"scope": "https://www.googleapis.com/auth/drive.readonly", "purpose": "Read file content for retrieval or summarisation"},
+      {"scope": "https://www.googleapis.com/auth/drive.file", "purpose": "Create or edit only files the agent itself created or the user opened with it — preferred over the broad drive scope"}
+    ],
+    "integration_steps": [
+      "Prefer drive.file over the broad drive scope unless the use case genuinely requires arbitrary pre-existing file access",
+      "If broad access is unavoidable, document the business justification — Google's OAuth verification review requires it for sensitive/restricted scopes",
+      "Cache only file metadata needed for the current task; do not bulk-index a user's entire Drive into agent state or a vector store without an explicit retention policy"
+    ],
+    "testing_notes": [
+      "Verify a drive.file-scoped token cannot read a file the agent did not create or the user did not explicitly open with it"
+    ],
+    "related_skills": [
+      {"skill": "docs", "relation": "Drive search results commonly resolve to Docs/Sheets files that need the corresponding content-read scope to open"},
+      {"skill": "gmail", "relation": "File-sharing flows often originate from or produce a Gmail notification"}
+    ]
+  },
+  {
+    "id": "gas-003",
+    "kb": "google_agent_skills",
+    "skill": "docs",
+    "title": "Docs Agent Skill — structured document read and edit",
+    "category": "google_agent_skill",
+    "tags": ["docs", "documents", "workspace", "oauth", "editing"],
+    "source": "google/skills — Docs skill reference",
+    "content": "The Docs skill operates on the structured content of a Google Doc (paragraphs, headings, tables, comments) via the Docs API, distinct from Drive's file-level metadata. A readonly scope is sufficient for summarisation or extraction use cases; an editing scope is required only when the agent inserts or replaces content, and edits should go through the batchUpdate revision model so changes are attributable and reversible.",
+    "oauth_scopes": [
+      {"scope": "https://www.googleapis.com/auth/documents.readonly", "purpose": "Read document structure and text for summarisation, extraction, or Q&A"},
+      {"scope": "https://www.googleapis.com/auth/documents", "purpose": "Insert, replace, or format document content — request only when the agent writes back to the document"}
+    ],
+    "integration_steps": [
+      "Start with documents.readonly; add the write scope only when a specific feature (e.g. auto-drafting) requires it",
+      "Route all writes through batchUpdate with named revisions so every agent edit is attributable in the document's version history",
+      "Combine with drive.file (not documents alone) when the agent must also create new Doc files, since document creation is a Drive-level operation"
+    ],
+    "testing_notes": [
+      "Confirm a readonly-scoped token receives a permission error on any write attempt rather than a silent no-op"
+    ],
+    "related_skills": [
+      {"skill": "drive", "relation": "Creating a new Doc file or moving it between folders is a Drive operation, not a Docs operation"}
+    ]
+  },
+  {
+    "id": "gas-004",
+    "kb": "google_agent_skills",
+    "skill": "sheets",
+    "title": "Sheets Agent Skill — spreadsheet read and range updates",
+    "category": "google_agent_skill",
+    "tags": ["sheets", "spreadsheets", "workspace", "oauth", "data"],
+    "source": "google/skills — Sheets skill reference",
+    "content": "The Sheets skill reads and writes cell ranges, formulas, and sheet metadata via the Sheets API. Read-only integrations (dashboards, reporting Q&A) should request the readonly scope; range-limited writes (e.g. appending a row to a tracked sheet) should still request the full spreadsheets scope, since Sheets has no file-level equivalent of Drive's drive.file narrow-write scope as of this writing — that gap should be called out explicitly to the customer's security reviewer.",
+    "oauth_scopes": [
+      {"scope": "https://www.googleapis.com/auth/spreadsheets.readonly", "purpose": "Read cell values and sheet structure for reporting or Q&A use cases"},
+      {"scope": "https://www.googleapis.com/auth/spreadsheets", "purpose": "Append or update cell ranges — the only write-capable Sheets scope; no narrower per-file alternative exists"}
+    ],
+    "integration_steps": [
+      "Default to spreadsheets.readonly for any use case that does not explicitly write back",
+      "When a write scope is unavoidable, restrict the agent's own logic to a named, allow-listed range (e.g. a specific sheet tab) even though the OAuth scope itself cannot enforce that boundary",
+      "Flag the lack of a per-file Sheets write scope to the customer's security reviewer up front — it is a known platform gap, not an integration oversight"
+    ],
+    "testing_notes": [
+      "Verify the agent's own range allow-list is enforced in code, since the OAuth scope alone permits writing to any spreadsheet the user can edit"
+    ],
+    "related_skills": [
+      {"skill": "drive", "relation": "Discovering which spreadsheet to open is typically a Drive search step before the Sheets skill is invoked"}
+    ]
+  },
+  {
+    "id": "gas-005",
+    "kb": "google_agent_skills",
+    "skill": "calendar",
+    "title": "Calendar Agent Skill — event read and scheduling",
+    "category": "google_agent_skill",
+    "tags": ["calendar", "scheduling", "workspace", "oauth", "events"],
+    "source": "google/skills — Calendar skill reference",
+    "content": "The Calendar skill reads free/busy data and events, and can create or update events (e.g. scheduling a meeting the agent negotiated). calendar.events is scoped to event data only and is preferred over the broad calendar scope, which also grants calendar-settings access. Free/busy lookups across an organisation typically require the caller to be inside the same Workspace domain or explicitly shared with.",
+    "oauth_scopes": [
+      {"scope": "https://www.googleapis.com/auth/calendar.readonly", "purpose": "Read events and free/busy status for scheduling suggestions"},
+      {"scope": "https://www.googleapis.com/auth/calendar.events", "purpose": "Create or update events — preferred over the broad calendar scope which also exposes calendar settings"}
+    ],
+    "integration_steps": [
+      "Use calendar.readonly for pure availability-lookup use cases",
+      "Use calendar.events (not the broad calendar scope) when the agent creates or modifies meetings on the user's behalf",
+      "Confirm the organiser's domain sharing policy before assuming cross-user free/busy lookups will succeed — restricted domains return an empty result rather than an error"
+    ],
+    "testing_notes": [
+      "Verify an event created by the agent carries an identifiable organizer/creator note so a human can distinguish agent-created events in an audit"
+    ],
+    "related_skills": [
+      {"skill": "gmail", "relation": "Meeting confirmations and reschedule notices are commonly sent as a follow-up Gmail message"}
+    ]
+  },
+  {
+    "id": "gas-006",
+    "kb": "google_agent_skills",
+    "skill": "workspace",
+    "title": "Workspace Admin Agent Skill — domain-wide delegation and directory lookup",
+    "category": "google_agent_skill",
+    "tags": ["workspace", "admin", "directory", "domain-wide-delegation", "oauth"],
+    "source": "google/skills — Workspace Admin skill reference",
+    "content": "The Workspace-wide admin skill covers directory lookups (user/group resolution) and, where authorised, domain-wide delegation — a service account impersonating any user in the domain without per-user consent screens. Domain-wide delegation is the highest-privilege integration pattern in this KB and should be reserved for IT-administered automation, never for an agent that a regular end user directly interacts with.",
+    "oauth_scopes": [
+      {"scope": "https://www.googleapis.com/auth/admin.directory.user.readonly", "purpose": "Resolve user/group identities for routing or permission checks"},
+      {"scope": "https://www.googleapis.com/auth/admin.reports.audit.readonly", "purpose": "Read Workspace admin audit log events for the integration's own audit trail (see docs on FISC/ISMS logging requirements)"}
+    ],
+    "integration_steps": [
+      "Reserve domain-wide delegation for IT-administered service accounts, never for a per-user consent flow",
+      "Scope a delegated service account down to the minimum set of impersonable users via the Admin console's API client access control, not just the OAuth scope list",
+      "Pull Workspace admin audit log events (admin.reports.audit.readonly) into the customer's SIEM as a condition of enabling delegation, so agent actions are independently observable outside the agent's own logs"
+    ],
+    "testing_notes": [
+      "Confirm the Admin console's API client access control list is scoped to only the Client ID this agent uses — a wildcard entry defeats the per-integration audit trail"
+    ],
+    "related_skills": [
+      {"skill": "gmail", "relation": "Domain-wide delegation is the mechanism that lets an admin-authorised agent send as any user, distinct from per-user Gmail consent"}
+    ]
+  },
+  {
+    "id": "gas-007",
+    "kb": "google_agent_skills",
+    "skill": "cloud",
+    "title": "Cloud Agent Skill — Google Cloud resource access",
+    "category": "google_agent_skill",
+    "tags": ["cloud", "gcp", "iam", "oauth", "infrastructure"],
+    "source": "google/skills — Cloud skill reference",
+    "content": "The Cloud skill wraps Google Cloud Platform APIs (storage, BigQuery, compute, etc.) rather than Workspace productivity apps. Authorisation is IAM-based: cloud-platform is a broad scope roughly equivalent to \"whatever the underlying IAM role permits\", so the real access boundary for this skill is the IAM role bound to the service account, not the OAuth scope string itself — request the narrowest role (e.g. BigQuery Data Viewer) rather than Project Editor/Owner.",
+    "oauth_scopes": [
+      {"scope": "https://www.googleapis.com/auth/cloud-platform.read-only", "purpose": "Read-only access across enabled GCP APIs, gated further by the bound IAM role"},
+      {"scope": "https://www.googleapis.com/auth/cloud-platform", "purpose": "Full access across enabled GCP APIs, gated further by the bound IAM role — request only when a write action is required"}
+    ],
+    "integration_steps": [
+      "Bind the service account to the narrowest predefined IAM role that covers the use case (e.g. roles/bigquery.dataViewer), never Owner/Editor",
+      "Use cloud-platform.read-only for any use case that does not write to a GCP resource",
+      "Treat the OAuth scope as necessary but not sufficient — review the IAM role binding separately, since the scope alone does not limit which resources are reachable"
+    ],
+    "testing_notes": [
+      "Verify the service account's effective IAM permissions with a policy simulator before relying on the OAuth scope description alone"
+    ],
+    "related_skills": [
+      {"skill": "workspace", "relation": "A GCP service account used for domain-wide delegation into Workspace should be a distinct, narrowly-scoped identity from the general Cloud-resource service account"}
+    ]
+  },
+  {
+    "id": "gas-008",
+    "kb": "google_agent_skills",
+    "skill": "search",
+    "title": "Search Agent Skill — Programmable Search (API-key, not OAuth)",
+    "category": "google_agent_skill",
+    "tags": ["search", "custom-search", "api-key", "programmable-search"],
+    "source": "google/skills — Search skill reference",
+    "content": "The Search skill wraps the Programmable Search Engine (Custom Search JSON API) and is authenticated differently from the Workspace skills above: it uses an API key plus a Search Engine ID, not a user-consent OAuth scope, because it queries a configured public/organisational search index rather than a specific user's private data. The access boundary is therefore the API key's HTTP-referrer/IP restriction and daily quota, not an OAuth consent screen.",
+    "oauth_scopes": [],
+    "integration_steps": [
+      "Provision a dedicated API key restricted to the Custom Search JSON API only, with an HTTP-referrer or IP allowlist matching the agent's deployment environment",
+      "Configure the Search Engine ID (cx parameter) to the specific indexed site/collection the agent should search — never the unrestricted open-web default unless that is the explicit intent",
+      "Track daily query quota consumption; the API returns a quota-exceeded error rather than degrading silently"
+    ],
+    "testing_notes": [
+      "Confirm the API key is rejected from an unlisted referrer/IP in a negative test — an unrestricted key is a common integration mistake"
+    ],
+    "related_skills": []
+  },
+  {
+    "id": "gas-009",
+    "kb": "google_agent_skills",
+    "skill": "maps",
+    "title": "Maps Agent Skill — Places/Directions/Geocoding (API-key, not OAuth)",
+    "category": "google_agent_skill",
+    "tags": ["maps", "places", "directions", "geocoding", "api-key"],
+    "source": "google/skills — Maps skill reference",
+    "content": "The Maps skill wraps the Google Maps Platform (Places, Directions, Geocoding, and related APIs). Like Search, it is API-key authenticated rather than OAuth user-consent — there is no per-user data being accessed. Each API on the platform is billed and quota-limited independently, so the integration should enable and restrict the key to only the specific Maps APIs the use case needs (e.g. Places only, not the full platform).",
+    "oauth_scopes": [],
+    "integration_steps": [
+      "Create a Maps Platform API key restricted to only the specific APIs required (e.g. Places API, Directions API) — do not enable the full platform on one key",
+      "Apply an HTTP-referrer or IP restriction and, for server-side agents, prefer the IP restriction over referrer",
+      "Set a budget alert on the associated billing account; Maps Platform usage is metered per request type"
+    ],
+    "testing_notes": [
+      "Verify a request for a non-enabled API on the key fails closed with a clear \"API not enabled\" error rather than an ambiguous 403"
+    ],
+    "related_skills": []
+  },
+  {
+    "id": "gas-010",
+    "kb": "google_agent_skills",
+    "skill": "youtube",
+    "title": "YouTube Agent Skill — read metadata and manage owned content",
+    "category": "google_agent_skill",
+    "tags": ["youtube", "video", "oauth", "content"],
+    "source": "google/skills — YouTube skill reference",
+    "content": "The YouTube skill covers two distinct access patterns: reading public video/channel metadata (readonly, works with an API key for public data) and managing content the authenticated user owns — uploading, updating metadata, or moderating comments — which requires an OAuth user-consent scope tied to the channel owner's account.",
+    "oauth_scopes": [
+      {"scope": "https://www.googleapis.com/auth/youtube.readonly", "purpose": "Read the authenticated user's channel data, playlists, and subscriptions"},
+      {"scope": "https://www.googleapis.com/auth/youtube.upload", "purpose": "Upload new videos to the authenticated user's channel"},
+      {"scope": "https://www.googleapis.com/auth/youtube.force-ssl", "purpose": "Manage videos, comments, and captions on the authenticated user's channel over an SSL-only connection"}
+    ],
+    "integration_steps": [
+      "Use an API key (no OAuth) for public metadata lookups that do not touch a specific user's private channel data",
+      "Request youtube.readonly for channel-owner dashboards that only read the owner's own data",
+      "Request youtube.upload / youtube.force-ssl only for the specific content-management actions the agent performs — each maps to a distinct, auditable capability"
+    ],
+    "testing_notes": [
+      "Confirm an upload attempt with only the readonly scope is rejected, not silently queued"
+    ],
+    "related_skills": [
+      {"skill": "drive", "relation": "Source video files for an upload workflow are commonly staged in Drive before being pushed to YouTube"}
+    ]
+  }
+]

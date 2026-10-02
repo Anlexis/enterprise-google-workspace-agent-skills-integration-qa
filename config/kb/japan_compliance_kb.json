@@ -1,0 +1,86 @@
+[
+  {
+    "id": "jc-001",
+    "kb": "japan_compliance",
+    "framework": "APPI",
+    "title": "APPI — cross-border transfer of personal data",
+    "category": "compliance",
+    "tags": ["appi", "cross-border", "transfer", "personal-data"],
+    "source": "Act on the Protection of Personal Information — cross-border transfer overview",
+    "content": "APPI restricts transferring personal information to a third party located outside Japan unless one of a limited set of conditions is met: the destination country is on Japan's recognised-adequate list, the receiving party has established a data-protection framework meeting APPI-equivalent standards, or the data subject has given informed consent to the specific overseas transfer. A Google Agent Skills integration that sends Workspace data (email content, file text, calendar details) through infrastructure outside Japan should be evaluated against this rule before launch, not discovered at a compliance review after rollout.",
+    "guidance": "Confirm which Google Cloud/Workspace processing region applies and document which APPI cross-border-transfer condition (adequacy, contractual safeguards, or consent) it relies on before the integration handles any personal data.",
+    "testing_notes": [
+      "Confirm the documented transfer basis is on file and reviewable, not just asserted verbally"
+    ]
+  },
+  {
+    "id": "jc-002",
+    "kb": "japan_compliance",
+    "framework": "APPI",
+    "title": "APPI — purpose limitation and consent for processing",
+    "category": "compliance",
+    "tags": ["appi", "purpose-limitation", "consent", "personal-data"],
+    "source": "Act on the Protection of Personal Information — purpose limitation",
+    "content": "APPI requires that personal information be used only within the scope of the purpose specified at collection, and that using it beyond that purpose generally requires the data subject's consent. For an agent that reads Gmail/Drive/Calendar content to answer questions or automate a task, the integration's privacy notice should specifically describe that an AI agent processes the content and for what purpose — a generic \"we may use your data to improve services\" notice is not considered sufficiently specific under current guidance.",
+    "guidance": "Update the privacy notice shown at OAuth consent time (or the surrounding enterprise rollout communication) to specifically name the AI agent's processing purpose — do not rely on a generic services notice.",
+    "testing_notes": [
+      "Verify the consent-time privacy notice text names the specific processing purpose, not a generic catch-all statement"
+    ]
+  },
+  {
+    "id": "jc-003",
+    "kb": "japan_compliance",
+    "framework": "FISC",
+    "title": "FISC — security guideline applicability for financial-sector customers",
+    "category": "compliance",
+    "tags": ["fisc", "financial", "security-guidelines", "access-control"],
+    "source": "FISC Security Guidelines — applicability overview",
+    "content": "FISC (Center for Financial Industry Information Systems) security guidelines apply specifically when the customer deploying the integration is a Japanese financial institution — they are not a general-purpose requirement for every enterprise. Where applicable, FISC expects strong access control (multi-factor authentication for admin-level access, least-privilege role assignment), encryption in transit and at rest, and documented incident-response procedures for any system touching financial customer data, which extends to an AI agent integration reading Workspace content for a financial-sector customer.",
+    "guidance": "Confirm whether the deploying customer is a Japanese financial institution; if so, require MFA on all admin/delegation-capable accounts and document encryption-in-transit/at-rest posture as part of the integration's security review, not as a generic Workspace default assumption.",
+    "testing_notes": [
+      "Confirm the applicability determination (financial institution: yes/no) is recorded, not silently assumed either way"
+    ]
+  },
+  {
+    "id": "jc-004",
+    "kb": "japan_compliance",
+    "framework": "ISMS",
+    "title": "ISMS (ISO/IEC 27001) — third-party integration access control",
+    "category": "compliance",
+    "tags": ["isms", "iso27001", "access-control", "certification"],
+    "source": "ISO/IEC 27001-based ISMS — third-party access control scope",
+    "content": "An organisation holding ISMS certification must show that third-party integrations with access to in-scope information assets — which includes an AI agent with OAuth access to Workspace mail, files, and calendars — are covered by the organisation's access-control policy and periodic access review, the same as any other third-party system. This typically means the integration's granted scopes and any domain-wide delegation must appear in the organisation's asset/access inventory, not exist only inside the Google Cloud/Workspace admin console.",
+    "guidance": "Add the agent's OAuth client and its granted scopes (or delegation grant) to the organisation's ISMS access-control asset inventory, and include it in the next periodic access review cycle rather than treating it as outside the certified scope.",
+    "testing_notes": [
+      "Confirm the agent's access grant is discoverable in the organisation's access-control inventory, not only in the Google Admin console"
+    ]
+  },
+  {
+    "id": "jc-005",
+    "kb": "japan_compliance",
+    "framework": "APPI",
+    "title": "Data residency and retention for retrieved content",
+    "category": "compliance",
+    "tags": ["data-residency", "retention", "appi", "storage"],
+    "source": "APPI-aligned data governance guidance — residency and retention",
+    "content": "Beyond the cross-border transfer rule, an integration should have an explicit, minimal retention policy for any Workspace content it retrieves — email bodies, document text, calendar details should not be retained in agent logs, caches, or a vector index indefinitely by default. A stated retention window (and a deletion mechanism that actually executes it) is both an APPI good-practice expectation and a common ISMS audit finding when absent.",
+    "guidance": "Define an explicit, minimal retention window for retrieved Workspace content used by the agent, and verify the deletion job actually runs — an undocumented \"keep forever\" default is a recurring audit finding.",
+    "testing_notes": [
+      "Confirm retrieved content older than the stated retention window is actually deleted, not merely excluded from search results"
+    ]
+  },
+  {
+    "id": "jc-006",
+    "kb": "japan_compliance",
+    "framework": "ISMS",
+    "title": "Incident and audit logging retention requirements",
+    "category": "compliance",
+    "tags": ["audit-logging", "incident-response", "isms", "retention"],
+    "source": "ISO/IEC 27001-based ISMS — logging and incident-response scope",
+    "content": "ISMS-certified organisations typically define a minimum retention period for security-relevant audit logs (commonly a year or more, organisation-policy-dependent) sufficient to support an incident investigation. For a Google Agent Skills integration this means both the agent's own audit trail and the pulled Workspace Admin SDK Reports API events (see the integration-patterns audit-logging entry) must be retained for at least the organisation's policy window, not just whatever the default log rotation happens to keep.",
+    "guidance": "Confirm the agent's own audit events and the ingested Workspace admin activity feed are both retained for at least the organisation's ISMS-defined minimum window, and are not silently rotated out sooner by a default log-storage setting.",
+    "testing_notes": [
+      "Confirm log-retention configuration for both the agent's own audit trail and the ingested Workspace activity feed meets the organisation's stated minimum, not the storage system's default"
+    ]
+  }
+]

@@ -1,0 +1,25 @@
+# Runtime parameters — loaded by the platform registry and passed as
+# Graph(config=...). Separate from config/agent.yaml, which is the static
+# registration manifest and carries no tuning values.
+#
+# The standalone entry point (src/api/server.py) reads this same file through
+# src/graph/graph.py:runtime_config(), so a registry-loaded agent and a
+# standalone one are configured identically.
+
+max_retry: 3
+timeout_s: 30
+
+# Retrieval tuning — forwarded to the inner DomainWorkflowGraph by
+# IntegrationQAGraphNode._parent_config() under
+# config["configurable"]["retrieval"], republished into inner state, and read
+# there by RetrieveNode and RerankFilterNode. kb_paths is a LIST: retrieval is
+# pooled across three seeded knowledge bases (Google Agent Skills
+# documentation, enterprise integration patterns, Japan compliance
+# requirements) rather than a single index.
+retrieval:
+  top_k: 6
+  score_threshold: 0.15
+  kb_paths:
+    - "config/kb/google_agent_skills_kb.json"
+    - "config/kb/integration_patterns_kb.json"
+    - "config/kb/japan_compliance_kb.json"

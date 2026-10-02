@@ -1,0 +1,104 @@
+[
+  {
+    "id": "ip-001",
+    "kb": "integration_patterns",
+    "title": "Scope minimisation (principle of least privilege)",
+    "category": "integration_pattern",
+    "tags": ["scope", "least-privilege", "oauth", "security"],
+    "source": "Enterprise integration pattern — scope minimisation",
+    "content": "Request the narrowest OAuth scope that satisfies the current feature, not the broadest scope that might satisfy a future one. Google's own OAuth verification process treats sensitive and restricted scopes as higher-friction (longer review, published privacy-policy requirement, periodic re-verification) — over-scoping is both a security risk and a slower path to production. Re-request an additional scope incrementally when a new feature genuinely needs it, rather than front-loading a maximal scope set at initial integration.",
+    "integration_steps": [
+      "Enumerate the exact API calls the current release makes and map each to the single narrowest scope that covers it",
+      "Treat any scope not exercised by a shipped feature as a finding to remove, not a convenience to keep",
+      "Plan for incremental scope requests (Google's incremental authorization pattern) rather than a single maximal upfront consent"
+    ],
+    "testing_notes": [
+      "Diff the requested scope list against the set of API calls the agent's code path actually makes; an unused scope is a fail"
+    ]
+  },
+  {
+    "id": "ip-002",
+    "kb": "integration_patterns",
+    "title": "Domain-wide delegation vs per-user consent",
+    "category": "integration_pattern",
+    "tags": ["domain-wide-delegation", "service-account", "consent", "oauth"],
+    "source": "Enterprise integration pattern — delegation model choice",
+    "content": "Two access models exist for Workspace skills: per-user OAuth consent (the user explicitly authorises the agent, revocable by that user at any time) and domain-wide delegation (an IT admin authorises a service account to impersonate any — or a named subset of — users, with no per-user consent screen). Per-user consent is the default and should be preferred for anything end users interact with directly; domain-wide delegation is appropriate only for IT-administered background automation and requires an explicit admin decision, not an engineering default.",
+    "integration_steps": [
+      "Default new integrations to per-user OAuth consent",
+      "Escalate to domain-wide delegation only when a named IT admin has explicitly approved it for a specific, bounded automation use case",
+      "When delegation is approved, restrict the service account's impersonation scope to the smallest practical group of users via the Admin console, not the full domain by default"
+    ],
+    "testing_notes": [
+      "Confirm a delegated service account cannot impersonate a user outside its configured group"
+    ]
+  },
+  {
+    "id": "ip-003",
+    "kb": "integration_patterns",
+    "title": "Token and secret storage boundary",
+    "category": "integration_pattern",
+    "tags": ["token-storage", "secrets", "vault", "credential-handling"],
+    "source": "Enterprise integration pattern — credential storage",
+    "content": "OAuth refresh/access tokens are secrets and must never be written into an agent's conversational State, logs, or a general-purpose database — they belong in a dedicated secret manager or token vault addressed by an opaque handle, with the agent code requesting a short-lived credential at call time rather than holding a long-lived one in memory or on disk longer than necessary.",
+    "integration_steps": [
+      "Store issued tokens only in a secret manager / token vault, never in application logs, chat transcripts, or a general database column",
+      "Have the agent's runtime request a credential handle at call time and let the vault perform the actual token refresh, rather than the agent caching a raw token itself",
+      "Apply the same boundary to API keys (Maps/Search): store them in the secret manager, not in a config file committed to source control"
+    ],
+    "testing_notes": [
+      "Grep application logs and error traces for a raw token/API-key pattern after a full integration test run — none should appear"
+    ]
+  },
+  {
+    "id": "ip-004",
+    "kb": "integration_patterns",
+    "title": "Rate limits and quota planning",
+    "category": "integration_pattern",
+    "tags": ["rate-limit", "quota", "throttling", "reliability"],
+    "source": "Enterprise integration pattern — quota planning",
+    "content": "Every Google API used through Agent Skills carries a per-project quota (queries per day/minute, sometimes per-user). An enterprise rollout multiplies request volume quickly once many employees adopt the agent, so quota planning is a launch blocker, not a post-launch tuning task: request quota increases ahead of a broad rollout, and implement client-side backoff so a quota error degrades gracefully rather than surfacing as an opaque failure to the end user.",
+    "integration_steps": [
+      "Estimate steady-state request volume per API from the pilot rollout and request a quota increase before the org-wide rollout, not after",
+      "Implement exponential backoff with jitter on 429/quota-exceeded responses",
+      "Alert on sustained quota pressure (e.g. 80% of daily quota by mid-day) so the team can act before users are affected"
+    ],
+    "testing_notes": [
+      "Simulate a quota-exceeded response in a test double and confirm the agent surfaces a clear, user-facing retry message instead of a raw error"
+    ]
+  },
+  {
+    "id": "ip-005",
+    "kb": "integration_patterns",
+    "title": "Audit logging integration (Admin SDK Reports API)",
+    "category": "integration_pattern",
+    "tags": ["audit-log", "admin-sdk", "reports-api", "observability"],
+    "source": "Enterprise integration pattern — audit trail",
+    "content": "Beyond the agent's own application logs, Google Workspace independently records admin and (for some services) user activity events via the Admin SDK Reports API. Pulling these into the customer's own SIEM gives an audit trail that is independent of the agent's own logging — important both for incident response and for satisfying the logging expectations under ISMS/FISC-style frameworks, which generally expect logs the monitored system cannot itself silently alter.",
+    "integration_steps": [
+      "Enable and pull the relevant Admin SDK Reports API activity feed (e.g. admin, drive, token) for the domain the agent integrates with",
+      "Forward the feed into the customer's SIEM/log-retention system, not just the agent's own application log store",
+      "Cross-reference the agent's own trace and audit events against the Reports API feed during incident response so both sources are checked, not just the agent's self-reported log"
+    ],
+    "testing_notes": [
+      "Confirm a token-grant event from a test OAuth consent appears in the Reports API feed within the expected latency window"
+    ]
+  },
+  {
+    "id": "ip-006",
+    "kb": "integration_patterns",
+    "title": "Staged rollout and revocation procedure",
+    "category": "integration_pattern",
+    "tags": ["staged-rollout", "pilot", "kill-switch", "revocation"],
+    "source": "Enterprise integration pattern — rollout and rollback",
+    "content": "Roll a new Google Agent Skills integration out to a small pilot group before an org-wide launch, and have a documented, tested revocation procedure ready before the pilot begins — not written after an incident. Revocation means both disabling the agent's OAuth client (or removing it from the domain-wide delegation allowlist) and confirming already-issued tokens stop working, since disabling the client alone does not always invalidate tokens already granted.",
+    "integration_steps": [
+      "Launch to a bounded pilot group first; expand only after the pilot's audit log and error rate have been reviewed",
+      "Write and rehearse a revocation procedure: disable the OAuth client / remove the delegation allowlist entry, then verify a previously-issued token is actually rejected on the next call",
+      "Assign a named owner for the kill-switch decision so revocation is not blocked on finding the right person during an incident"
+    ],
+    "testing_notes": [
+      "Execute the revocation procedure in a non-production tenant and confirm token rejection end-to-end before relying on it for production"
+    ]
+  }
+]
